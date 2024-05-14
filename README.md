@@ -54,3 +54,7 @@ forge script --broadcast --rpc-url <RPC-URL> --private-key <PRIVATE_KEY> --verif
 ## Acknowledgments
 
 Inspired by [ERC20 Permit2](https://github.com/Uniswap/permit2).
+
+## Audits
+
+Audited by Offbeat Security, report can be found in the `audits` folder or [here](https://hackmd.io/@devtooligan/erc721permit2-contango-11MAY2024)

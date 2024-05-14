@@ -31,8 +31,18 @@ contract ERC721Permit2 is IERC721Permit2, EIP712("ERC721Permit2", "1") {
         SignatureTransferDetails calldata transferDetails,
         address owner,
         bytes calldata signature
-    ) external {
-        _permitTransferFrom(permit, transferDetails, owner, permit.hash(), signature);
+    ) external override {
+        _permitTransferFrom(permit, transferDetails, owner, permit.hash(), signature, false);
+    }
+
+    /// @inheritdoc IERC721Permit2
+    function permitSafeTransferFrom(
+        PermitTransferFrom memory permit,
+        SignatureTransferDetails calldata transferDetails,
+        address owner,
+        bytes calldata signature
+    ) external override {
+        _permitTransferFrom(permit, transferDetails, owner, permit.hash(), signature, true);
     }
 
     /// @notice Transfers a token using a signed permit message.
@@ -46,7 +56,8 @@ contract ERC721Permit2 is IERC721Permit2, EIP712("ERC721Permit2", "1") {
         SignatureTransferDetails calldata transferDetails,
         address owner,
         bytes32 dataHash,
-        bytes calldata signature
+        bytes calldata signature,
+        bool safeTransfer
     ) private {
         uint256 tokenId = transferDetails.tokenId;
 
@@ -57,7 +68,7 @@ contract ERC721Permit2 is IERC721Permit2, EIP712("ERC721Permit2", "1") {
 
         signature.verify(_hashTypedDataV4(dataHash), owner);
 
-        IERC721(permit.permitted.token).transferFrom(owner, transferDetails.to, tokenId);
+        _transfer(permit.permitted.token, owner, transferDetails.to, tokenId, safeTransfer);
     }
 
     /// @inheritdoc IERC721Permit2
@@ -66,8 +77,18 @@ contract ERC721Permit2 is IERC721Permit2, EIP712("ERC721Permit2", "1") {
         SignatureTransferDetails[] calldata transferDetails,
         address owner,
         bytes calldata signature
-    ) external {
-        _permitTransferFrom(permit, transferDetails, owner, permit.hash(), signature);
+    ) external override {
+        _permitTransferFrom(permit, transferDetails, owner, permit.hash(), signature, false);
+    }
+
+    /// @inheritdoc IERC721Permit2
+    function permitSafeTransferFrom(
+        PermitBatchTransferFrom memory permit,
+        SignatureTransferDetails[] calldata transferDetails,
+        address owner,
+        bytes calldata signature
+    ) external override {
+        _permitTransferFrom(permit, transferDetails, owner, permit.hash(), signature, true);
     }
 
     /// @notice Transfers tokens using a signed permit messages
@@ -80,7 +101,8 @@ contract ERC721Permit2 is IERC721Permit2, EIP712("ERC721Permit2", "1") {
         SignatureTransferDetails[] calldata transferDetails,
         address owner,
         bytes32 dataHash,
-        bytes calldata signature
+        bytes calldata signature,
+        bool safeTransfer
     ) private {
         uint256 numPermitted = permit.permitted.length;
 
@@ -97,13 +119,18 @@ contract ERC721Permit2 is IERC721Permit2, EIP712("ERC721Permit2", "1") {
 
                 if (tokenId != permitted.tokenId) revert InvalidTokenId(permitted.tokenId);
 
-                IERC721(permitted.token).transferFrom(owner, transferDetails[i].to, tokenId);
+                _transfer(permitted.token, owner, transferDetails[i].to, tokenId, safeTransfer);
             }
         }
     }
 
+    function _transfer(address token, address from, address to, uint256 tokenId, bool safeTransfer) internal {
+        if (safeTransfer) IERC721(token).safeTransferFrom(from, to, tokenId);
+        else IERC721(token).transferFrom(from, to, tokenId);
+    }
+
     /// @inheritdoc IERC721Permit2
-    function invalidateUnorderedNonces(uint256 wordPos, uint256 mask) external {
+    function invalidateUnorderedNonces(uint256 wordPos, uint256 mask) external override {
         nonceBitmap[msg.sender][wordPos] |= mask;
 
         emit UnorderedNonceInvalidation(msg.sender, wordPos, mask);

@@ -9,7 +9,7 @@ import "./utils/StructBuilder.sol";
 import "./utils/ERC721Mock.sol";
 import "./utils/utils.sol";
 
-contract ERC721Permit2Test is Test, PermitSignature {
+contract ERC721SafePermit2Test is Test, PermitSignature {
     event UnorderedNonceInvalidation(address indexed owner, uint256 word, uint256 mask);
     event Transfer(address indexed from, address indexed token, address indexed to, uint256 amount);
 
@@ -18,8 +18,8 @@ contract ERC721Permit2Test is Test, PermitSignature {
     address from;
     uint256 fromPrivateKey;
 
-    address address1 = address(0x1);
-    address address2 = address(0x2);
+    address address1 = address(new SafeReceiver());
+    address address2 = address(new SafeReceiver());
 
     ERC721Mock token0;
     ERC721Mock token1;
@@ -57,7 +57,7 @@ contract ERC721Permit2Test is Test, PermitSignature {
         return IERC721Permit2.SignatureTransferDetails(to, tokenId);
     }
 
-    function testPermitTransferFrom() public {
+    function testPermitSafeTransferFrom() public {
         uint256 nonce = 0;
         IERC721Permit2.PermitTransferFrom memory permit = defaultERC721PermitTransfer(address(token0), nonce, id1);
         bytes memory sig = getPermitTransferSignature(permit, fromPrivateKey, DOMAIN_SEPARATOR);
@@ -67,11 +67,24 @@ contract ERC721Permit2Test is Test, PermitSignature {
 
         IERC721Permit2.SignatureTransferDetails memory transferDetails = getTransferDetails(address2, id1);
 
-        permit2.permitTransferFrom(permit, transferDetails, from, sig);
+        permit2.permitSafeTransferFrom(permit, transferDetails, from, sig);
 
         assertEq(token0.balanceOf(from), startBalanceFrom - 1);
         assertEq(token0.balanceOf(address2), startBalanceTo + 1);
         assertEq(token0.ownerOf(id1), address2);
+    }
+
+    function testPermitSafeTransferFrom_FailOnUnsafeReceiver() public {
+        address2 = address(new UnsafeReceiver());
+
+        uint256 nonce = 0;
+        IERC721Permit2.PermitTransferFrom memory permit = defaultERC721PermitTransfer(address(token0), nonce, id1);
+        bytes memory sig = getPermitTransferSignature(permit, fromPrivateKey, DOMAIN_SEPARATOR);
+
+        IERC721Permit2.SignatureTransferDetails memory transferDetails = getTransferDetails(address2, id1);
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721InvalidReceiver.selector, address2));
+        permit2.permitSafeTransferFrom(permit, transferDetails, from, sig);
     }
 
     function testPermitTransferFromCompactSig() public {
@@ -85,7 +98,7 @@ contract ERC721Permit2Test is Test, PermitSignature {
 
         IERC721Permit2.SignatureTransferDetails memory transferDetails = getTransferDetails(address2, id1);
 
-        permit2.permitTransferFrom(permit, transferDetails, from, sig);
+        permit2.permitSafeTransferFrom(permit, transferDetails, from, sig);
 
         assertEq(token0.balanceOf(from), startBalanceFrom - 1);
         assertEq(token0.balanceOf(address2), startBalanceTo + 1);
@@ -102,7 +115,7 @@ contract ERC721Permit2Test is Test, PermitSignature {
         IERC721Permit2.SignatureTransferDetails memory transferDetails = getTransferDetails(address2, id1);
 
         vm.expectRevert(SignatureVerification.InvalidSignatureLength.selector);
-        permit2.permitTransferFrom(permit, transferDetails, from, sigExtra);
+        permit2.permitSafeTransferFrom(permit, transferDetails, from, sigExtra);
     }
 
     function testPermitTransferFromToSpender() public {
@@ -116,7 +129,7 @@ contract ERC721Permit2Test is Test, PermitSignature {
 
         IERC721Permit2.SignatureTransferDetails memory transferDetails = getTransferDetails(address1, id1);
 
-        permit2.permitTransferFrom(permit, transferDetails, from, sig);
+        permit2.permitSafeTransferFrom(permit, transferDetails, from, sig);
 
         assertEq(token0.balanceOf(from), startBalanceFrom - 1);
         assertEq(token0.balanceOf(address1), startBalanceTo + 1);
@@ -129,10 +142,10 @@ contract ERC721Permit2Test is Test, PermitSignature {
         bytes memory sig = getPermitTransferSignature(permit, fromPrivateKey, DOMAIN_SEPARATOR);
 
         IERC721Permit2.SignatureTransferDetails memory transferDetails = getTransferDetails(address2, id1);
-        permit2.permitTransferFrom(permit, transferDetails, from, sig);
+        permit2.permitSafeTransferFrom(permit, transferDetails, from, sig);
 
         vm.expectRevert(IERC721Permit2.InvalidNonce.selector);
-        permit2.permitTransferFrom(permit, transferDetails, from, sig);
+        permit2.permitSafeTransferFrom(permit, transferDetails, from, sig);
     }
 
     function testPermitTransferFromRandomNonceAndAmount(uint256 nonce, uint128 tokenId) public {
@@ -146,11 +159,29 @@ contract ERC721Permit2Test is Test, PermitSignature {
         uint256 startBalanceTo = token0.balanceOf(address2);
         IERC721Permit2.SignatureTransferDetails memory transferDetails = getTransferDetails(address2, tokenId);
 
-        permit2.permitTransferFrom(permit, transferDetails, from, sig);
+        permit2.permitSafeTransferFrom(permit, transferDetails, from, sig);
 
         assertEq(token0.balanceOf(from), startBalanceFrom - 1);
         assertEq(token0.balanceOf(address2), startBalanceTo + 1);
         assertEq(token0.ownerOf(tokenId), address2);
+    }
+
+    function testPermitBatchTransferFrom_FailOnUnsafeReceiver() public {
+        address2 = address(new UnsafeReceiver());
+
+        uint256 nonce = 0;
+        address[] memory tokens = toArray(address(token0), address(token1));
+        uint256[] memory tokenIds = toArray(id1, id2);
+        address[] memory to = toArray(address(address2), address(address1));
+
+        IERC721Permit2.PermitBatchTransferFrom memory permit = defaultERC721PermitMultiple(tokens, nonce, tokenIds);
+        bytes memory sig = getPermitBatchTransferSignature(permit, fromPrivateKey, DOMAIN_SEPARATOR);
+
+        IERC721Permit2.SignatureTransferDetails[] memory toAmountPairs =
+            StructBuilder.fillSigTransferDetails(tokenIds, to);
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721InvalidReceiver.selector, address2));
+        permit2.permitSafeTransferFrom(permit, toAmountPairs, from, sig);
     }
 
     function testPermitBatchTransferFrom() public {
@@ -170,7 +201,7 @@ contract ERC721Permit2Test is Test, PermitSignature {
         uint256 startBalanceTo0 = token0.balanceOf(address2);
         uint256 startBalanceTo1 = token1.balanceOf(address1);
 
-        permit2.permitTransferFrom(permit, toAmountPairs, from, sig);
+        permit2.permitSafeTransferFrom(permit, toAmountPairs, from, sig);
 
         assertEq(token0.balanceOf(from), startBalanceFrom0 - 1);
         assertEq(token1.balanceOf(from), startBalanceFrom1 - 1);
@@ -198,7 +229,7 @@ contract ERC721Permit2Test is Test, PermitSignature {
         uint256 startBalanceTo0 = token0.balanceOf(address2);
         uint256 startBalanceTo1 = token1.balanceOf(address2);
 
-        permit2.permitTransferFrom(permit, toAmountPairs, from, sig);
+        permit2.permitSafeTransferFrom(permit, toAmountPairs, from, sig);
 
         assertEq(token0.balanceOf(from), startBalanceFrom0 - 1);
         assertEq(token1.balanceOf(from), startBalanceFrom1 - 1);
@@ -227,7 +258,7 @@ contract ERC721Permit2Test is Test, PermitSignature {
 
         IERC721Permit2.SignatureTransferDetails[] memory toAmountPairs =
             StructBuilder.fillSigTransferDetails(tokenIds, to);
-        permit2.permitTransferFrom(permit, toAmountPairs, from, sig);
+        permit2.permitSafeTransferFrom(permit, toAmountPairs, from, sig);
 
         assertEq(token0.balanceOf(from), startBalanceFrom0 - 1);
         assertEq(token0.balanceOf(address(this)), startBalanceTo0 + 1);
@@ -259,7 +290,7 @@ contract ERC721Permit2Test is Test, PermitSignature {
         IERC721Permit2.SignatureTransferDetails[] memory toAmountPairs =
             StructBuilder.fillSigTransferDetails(tokenIds, to);
 
-        permit2.permitTransferFrom(permit, toAmountPairs, from, sig);
+        permit2.permitSafeTransferFrom(permit, toAmountPairs, from, sig);
 
         assertEq(token0.balanceOf(from), startBalanceFrom0 - 10);
         assertEq(token0.balanceOf(address(this)), startBalanceTo0 + 10);
@@ -283,7 +314,7 @@ contract ERC721Permit2Test is Test, PermitSignature {
             StructBuilder.fillSigTransferDetails(tokenIds, to);
 
         vm.expectRevert(IERC721Permit2.LengthMismatch.selector);
-        permit2.permitTransferFrom(permit, toAmountPairs, from, sig);
+        permit2.permitSafeTransferFrom(permit, toAmountPairs, from, sig);
     }
 
     function testInvalidateUnorderedNonces() public {
@@ -303,6 +334,18 @@ contract ERC721Permit2Test is Test, PermitSignature {
         IERC721Permit2.SignatureTransferDetails memory transferDetails = getTransferDetails(address2, id1);
 
         vm.expectRevert(IERC721Permit2.InvalidNonce.selector);
-        permit2.permitTransferFrom(permit, transferDetails, from, sig);
+        permit2.permitSafeTransferFrom(permit, transferDetails, from, sig);
+    }
+
+    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
+        return this.onERC721Received.selector;
     }
 }
+
+contract SafeReceiver {
+    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+}
+
+contract UnsafeReceiver {}

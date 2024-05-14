@@ -90,12 +90,37 @@ interface IERC721Permit2 {
         bytes calldata signature
     ) external;
 
+    /// @notice Transfers a token using a signed permit message, ensuring the recipient can handle ERC721 tokens
+    /// @dev Reverts if the requested amount is greater than the permitted signed amount
+    /// @param permit The permit data signed over by the owner
+    /// @param owner The owner of the tokens to transfer
+    /// @param transferDetails The spender's requested transfer details for the permitted token
+    /// @param signature The signature to verify
+    function permitSafeTransferFrom(
+        PermitTransferFrom memory permit,
+        SignatureTransferDetails calldata transferDetails,
+        address owner,
+        bytes calldata signature
+    ) external;
+
     /// @notice Transfers multiple tokens using a signed permit message
     /// @param permit The permit data signed over by the owner
     /// @param owner The owner of the tokens to transfer
     /// @param transferDetails Specifies the recipient and requested amount for the token transfer
     /// @param signature The signature to verify
     function permitTransferFrom(
+        PermitBatchTransferFrom memory permit,
+        SignatureTransferDetails[] calldata transferDetails,
+        address owner,
+        bytes calldata signature
+    ) external;
+
+    /// @notice Transfers multiple tokens using a signed permit message, ensuring the recipient can handle ERC721 tokens
+    /// @param permit The permit data signed over by the owner
+    /// @param owner The owner of the tokens to transfer
+    /// @param transferDetails Specifies the recipient and requested amount for the token transfer
+    /// @param signature The signature to verify
+    function permitSafeTransferFrom(
         PermitBatchTransferFrom memory permit,
         SignatureTransferDetails[] calldata transferDetails,
         address owner,

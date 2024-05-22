@@ -17,6 +17,10 @@ ERC721Permit2 applies the ideas from [ERC20 Permit2](https://github.com/Uniswap/
 
 Before integrating, contracts can request users’ tokens through `ERC721Permit2`, users must approve the `ERC721Permit2` contract through the specific token contract. There's no tech docs, but being a derivation from Uniswap's Permit2, you should get a very good idea by looking at Uniswap's [documentation site](https://docs.uniswap.org/contracts/permit2/overview).
 
+## Deployed addresses
+
+The contract is deployed at `0x6b210f49C0f0c8A008A1a4DC25df2E4473D97D85` currently on Ethereum, Arbtitrum, Base, Optimism, Gnosis, & Polygon.
+Get in touch if you'd like to see it in other chains
 
 ## Contributing
 
